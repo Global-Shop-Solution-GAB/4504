@@ -1,0 +1,376 @@
+Program.Sub.ScreenSU.Start
+Gui.Form1..Create
+Gui.Form1..Caption("Shipped Lines")
+Gui.Form1..Size(15360,7830)
+Gui.Form1..MinX(0)
+Gui.Form1..MinY(0)
+Gui.Form1..Position(0,0)
+Gui.Form1..BackColor(-2147483633)
+Gui.Form1..MousePointer(0)
+Gui.Form1..Event(UnLoad,Form1_UnLoad)
+Gui.Form1.GsGcLines.Create(GsGridControl)
+Gui.Form1.GsGcLines.Size(14955,5100)
+Gui.Form1.GsGcLines.Position(60,705)
+Gui.Form1.cmdPrint.Create(Button)
+Gui.Form1.cmdPrint.Size(855,375)
+Gui.Form1.cmdPrint.Position(660,6450)
+Gui.Form1.cmdPrint.Caption("Print")
+Gui.Form1.cmdPrint.Event(Click,cmdPrint_Click)
+Gui.Form1.cmdCancel.Create(Button)
+Gui.Form1.cmdCancel.Size(855,375)
+Gui.Form1.cmdCancel.Position(1905,6465)
+Gui.Form1.cmdCancel.Caption("Cancel")
+Gui.Form1.cmdCancel.Event(Click,Form1_UnLoad)
+Gui.Form1.lbl1.Create(Label,"Enter the total number of boxes needed for each line.  Enter the common qty per box for each line.",True,7470,255,0,105,315,True,0,"Arial",8,-2147483633,0)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.sPackList.Declare(String)
+Variable.Global.iBILogID.Declare(Long,0)
+Variable.Global.iBIRunID.Declare(Long,0)
+Variable.Global.iReportID.Declare(Long,0)
+Variable.Global.iLogID.Declare(Long,0)
+Variable.UDT.uLabels.Define("PCK_NO",String,PCK_NO)
+Variable.UDT.uLabels.Define("PART",String,PART)
+Variable.UDT.uLabels.Define("DESCRIPTION",String,DESCRIPTION)
+Variable.UDT.uLabels.Define("SHIPQTY",String,SHIPQTY)
+Variable.UDT.uLabels.Define("BOXQTY",String,BOXQTY)
+Variable.UDT.uLabels.Define("BOX",String,BOX)
+Variable.UDT.uLabels.Define("TOTAL_BOXES",String,TOTAL_BOXES)
+Variable.UDT.uLabels.Define("CUSTOMER",String,CUSTOMER)
+Variable.UDT.uLabels.Define("CUST_PART",String,CUST_PART)
+Variable.UDT.uLabels.Define("CUST_PO",String,CUST_PO)
+Variable.UDT.uLabels.Define("INVOICE",String,INVOICE)
+Variable.UDT.uLabels.Define("JOB",String,JOB)
+Variable.UDT.uLabels.Define("SUFFIX",String,SUFFIX)
+Variable.UDT.uLabels.Define("SO_NBR",String,SO_NBR)
+Variable.uGlobal.uLabel.Declare("uLabels")
+Variable.Global.sCustomer.Declare(String)
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+f.Intrinsic.Control.If(v.Caller.Hook,=,28510)
+	v.Passed.000331.Set("Crtn Labels")
+f.Intrinsic.Control.ElseIf(v.Caller.Hook,=,25910)
+	v.Passed.000204.Set("Crtn Labels")
+f.Intrinsic.Control.ElseIf(v.Caller.Hook,=,28550)
+	v.Global.sPackList.Set(v.Passed.000168)
+	f.Intrinsic.Control.CallSub(load_grid_data)
+F.Intrinsic.Control.ElseIf(V.Caller.Hook,=,28532)
+	V.Global.sPackList.Set(V.Passed.000168)
+	F.Intrinsic.Control.CallSub(load_grid_data)
+f.Intrinsic.Control.ElseIf(v.Caller.Hook,=,25980)
+	v.Global.sPackList.Set(v.Passed.000003)
+	f.Intrinsic.Control.CallSub(load_grid_data)
+f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GAB_4504_BOL_LABELS.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.load_grid_data.Start
+F.Intrinsic.Control.SetErrorHandler("load_grid_data_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.ssql.Declare(String)
+
+'pad the packlist number that was passed
+f.Intrinsic.String.LPad(v.Global.sPackList,"0",7,v.Global.sPackList)
+
+'Open a connection
+f.ODBC.Connection!conx.OpenConnection(v.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass)
+'get just the customerID
+f.Intrinsic.String.Build("select CUSTOMER from V_SHIPMENT_LINES where PCK_NO = '{0}'",V.Global.sPackList,V.Local.ssql)
+F.ODBC.Connection!conx.ExecuteAndReturn(V.Local.ssql,V.Global.sCustomer)
+F.Intrinsic.String.Replace(V.Global.sCustomer,"*!*","",V.Global.sCustomer)
+
+'select the lines in to the grid for editing
+f.Intrinsic.String.Build("Select PCK_NO, PART, ORDER_DESC AS DESCRIPTION, QTY_ORDERED, QTY_SHIPPED FROM V_SHIPMENT_LINES WHERE PCK_NO = '{0}'",V.Global.sPackList,V.Local.ssql)
+F.Data.DataTable.CreateFromSQL("DtLines","conx",v.Local.ssql)
+f.Data.DataTable.AddColumn("DtLines","Boxes","Long")
+f.Data.DataTable.AddColumn("DtLines","Qty Per Box","Long")
+'create the view from the datatable
+f.Data.DataView.Create("DtLines","DvDtLines")
+
+'bind the gridview
+gui.Form1.GsGcLines.DataSource("DtLines","DvDtLines")
+gui.Form1.GsGcLines.AddGridviewFromDatatable("GVLines","DtLines")
+f.ODBC.Connection!conx.Close
+
+'f.Intrinsic.Control.CallSub(formatgrid)
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Boxes","AllowEdit",True)
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Qty Per Box","AllowEdit",True)
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Boxes","ReadOnly",False)
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Qty Per Box","ReadOnly",False)
+
+'min width
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","PART","MinWidth","130")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","DESCRIPTION","MinWidth","271")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","QTY_ORDERED","MinWidth","100")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","QTY_SHIPPED","MinWidth","100")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Boxes","MinWidth","100")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Qty Per Box","MinWidth","100")
+
+gui.Form1..Show
+
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("load_grid_data_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GAB_4504_BOL_LABELS.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.load_grid_data.End
+
+Program.Sub.Form1_UnLoad.Start
+f.Intrinsic.Control.End
+
+Program.Sub.Form1_UnLoad.End
+
+Program.Sub.cmdPrint_Click.Start
+F.Intrinsic.Control.SetErrorHandler("load_grid_data_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.iRowCount.Declare(Long)
+v.Local.iCount.Declare(Long)
+v.Local.iCBox.Declare(Long)
+v.Local.fShipped.Declare(Float)
+v.Local.fBox.Declare(Float)
+v.Local.fBoxes.Declare(Float)
+v.Local.fQtyBox.Declare(Float)
+v.Local.iBoxRemain.Declare(Float)
+v.Local.iQtyRemain.Declare(Float)
+v.Local.sMsg.Declare(String)
+v.Local.sRow.Declare(String)
+V.Local.fBoxQty.Declare(Float)
+v.Local.sData.Declare(String)
+V.Local.sLabel.Declare(String)
+
+
+
+F.Intrinsic.UI.InvokeWaitDialog("Building Data")
+
+F.Global.BI.GetRunID(V.Global.iBIRunID)
+
+f.Intrinsic.String.Concat(v.Global.sCustomer,"_4504_BOL_LABEL.LAB",V.Local.sLabel)
+
+F.Global.BI.GetIDFromName(V.Local.sLabel,V.Global.iReportID)
+'Checking to see if we returned a customer specific label
+F.Intrinsic.Control.If(V.Global.iReportID,>,0)
+	F.Global.BI.StartLogging(V.global.iBIRunID,V.Global.iReportID,0,"",V.Global.iLogid)
+F.Intrinsic.Control.Else
+	V.Local.sLabel.Set("GAB_4504_BOL_LABEL.LAB")
+	F.Global.BI.GetIDFromName(V.Local.sLabel,V.Global.iReportID)
+	F.Global.BI.StartLogging(V.Global.iBIRunID,V.Global.iReportID,0,"",V.Global.iLogID)
+F.Intrinsic.Control.EndIf
+
+'get the number of rows from the grid
+gui.Form1.GsGcLines.GetRowCount("gvLines",v.Local.iRowCount)
+f.Intrinsic.Math.Sub(v.Local.iRowCount,1,v.Local.iRowCount)
+
+'this section: loop through the grid lines, calculate shipped qty vs box qty and # of boxes.
+f.Intrinsic.Control.For(v.Local.iCount,0,v.Local.iRowCount,1)
+	gui.Form1.GsGcLines.GetRowValues("gvLines",v.Local.iCount,v.Local.sRow)
+		f.Intrinsic.String.Split(v.Local.sRow,"*!*",v.Local.sRow)
+		v.Local.fShipped.Set(v.Local.sRow(4))
+		v.Local.fBoxes.Set(v.Local.sRow(5))
+		v.Local.fQtyBox.Set(v.Local.sRow(6))
+		'make sure that they didn't miss a box count or quantity
+		f.Intrinsic.Control.If(v.Local.fBoxes,<,1)
+			Function.Intrinsic.UI.Msgbox("you are missing the number of boxes needed in one of the rows","BOX REQUIREMENT MISSING")
+			v.Local.sData.Set("")
+			f.Intrinsic.UI.CloseWaitDialog
+			F.Intrinsic.Control.ExitSub
+		F.Intrinsic.Control.ElseIf(V.Local.fQtyBox,<,1)
+			Function.Intrinsic.UI.Msgbox("the quantity per box is missing for one of the rows","QTY PER BOX REQUIREMENT MISSING")
+			v.Local.sData.Set("")
+			f.Intrinsic.UI.CloseWaitDialog
+			F.Intrinsic.Control.ExitSub
+		F.Intrinsic.Control.EndIf
+		f.Intrinsic.Control.For(v.Local.iCBox,1,v.Local.fBoxes,1)
+			f.Intrinsic.Control.If(v.Local.fShipped,>,v.Local.fQtyBox)
+				f.Intrinsic.Math.Sub(v.Local.fShipped,v.Local.fQtyBox,v.Local.fShipped)
+				v.Local.fBoxQty.Set(v.Local.fQtyBox)
+			f.Intrinsic.Control.Else
+				v.Local.fBoxQty.Set(v.Local.fShipped)
+			f.Intrinsic.Control.EndIf
+			f.Intrinsic.String.Concat(v.Local.sData,v.Local.sRow(0),"*!*",v.Local.sRow(1),"*!*",v.Local.sRow(2),"*!*",v.Local.sRow(4),"*!*",v.Local.fBoxQty,"*!*",v.Local.iCBox,"*!*",v.Local.fBoxes,"@!@",v.Local.sData)		
+		f.Intrinsic.Control.Next(v.Local.iCBox)
+F.Intrinsic.Control.Next(V.Local.iCount)
+
+f.Data.DataTable.CreateFromString("dtLabels",v.Local.sData,"PCK_NO*!*PART*!*DESCRIPTION*!*SHIPQTY*!*BOXQTY*!*BOX*!*TOTAL_BOXES","STRING*!*STRING*!*STRING*!*STRING*!*STRING*!*STRING*!*STRING","*!*","@!@",True)
+gui.Form1..Visible(false)
+
+
+
+f.Intrinsic.Control.CallSub(additional_data)
+f.Intrinsic.UI.CloseWaitDialog
+f.Intrinsic.UI.InvokeWaitDialog("Printing Labels")
+
+
+
+F.Intrinsic.Control.CallSub(print_codesoft)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("load_grid_data_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GAB_4504_BOL_LABELS.G2U",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.cmdPrint_Click.End
+
+Program.Sub.formatGrid.Start
+F.Intrinsic.Control.SetErrorHandler("formatGrid_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'PART, DESCRIPTION, QTY_ORDERED, QTY_SHIPPED, # BOXES, Qty Per Box
+'format the grid columns
+'Gui.frmShip.GsGridControlShipped.SetColumnProperty("gvShipped","QTY_SHIPPED","AllowEdit",False)
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Boxes","AllowEdit",True)
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Qty Per Box","AllowEdit",True)
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Boxes","ReadOnly",False)
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Qty Per Box","ReadOnly",False)
+
+'min width
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","PART","MinWidth","130")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","DESCRIPTION","MinWidth","271")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","QTY_ORDERED","MinWidth","100")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","QTY_SHIPPED","MinWidth","100")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Boxes","MinWidth","100")
+gui.Form1.GsGcLines.SetColumnProperty("gvLines","Qty Per Box","MinWidth","100")
+
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("formatGrid_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GAB_4504_BOL_LABELS.G2U",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.formatGrid.End
+
+Program.Sub.additional_data.Start
+F.Intrinsic.Control.SetErrorHandler("additional_data_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iCount.Declare(Long)
+v.Local.sPack.Declare(String)
+v.Local.sPart.Declare(String)
+v.Local.sSql.Declare(String)
+v.Local.sReturn.Declare(String)
+v.Local.iRows.Declare(Long)
+v.Local.sTemp.Declare(String)
+v.Local.dDate.Declare(String)
+
+'this section, we are looping through the dtLabels data table and querying for additional BOL information now that we have the proper number of lables.
+v.Local.iRows.Set(v.DataTable.dtLabels.RowCount--)
+f.Intrinsic.Math.Sub(v.Local.iRows,1,v.Local.iRows)
+'add the required columns
+f.Data.DataTable.AddColumn("dtLabels","CUSTOMER","STRING")
+f.Data.DataTable.AddColumn("dtLabels","CUST_PART","STRING")
+f.Data.DataTable.AddColumn("dtLabels","CUST_PO","STRING")
+F.Data.DataTable.AddColumn("dtLabels","INVOICE","STRING")
+F.Data.DataTable.AddColumn("dtLabels","JOB","STRING")
+F.Data.DataTable.AddColumn("dtLabels","SUFFIX","STRING")
+f.Data.DataTable.AddColumn("dtLabels","SO_NBR","STRING")
+
+'open connection
+f.ODBC.Connection!conx.OpenConnection(v.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass)
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------
+'this section here is returning multiple rows for each row in the datatable.  Split on "#$#" and process only the first record (0)
+f.Intrinsic.Control.For(v.Local.iCount,0,v.Local.iRows,1)
+	v.Local.sPack.Set(v.DataTable.dtLabels(v.Local.iCount).PCK_NO!FieldValTrim)
+	v.Local.sPart.Set(v.DataTable.dtLabels(v.Local.iCount).PART!FieldValTrim)
+	f.Intrinsic.String.Build("select SL.ORIG_PCK_NO, SL.PART, SL.INVOICE, SL.CUSTOMER, SH.CUSTOMER_PO, IX.CUSTOMER_PART, CM.NAME_CUSTOMER, OW.JOB, OW.SUFFIX, SL.ORDER_NO AS SO_NBR FROM V_SHIPMENT_LINES SL LEFT JOIN V_SHIPMENT_HEADER SH ON SL.ORIG_PCK_NO = SH.ORIG_PCK_NO LEFT JOIN V_CUSTOMER_MASTER CM ON SH.CUSTOMER = CM.CUSTOMER LEFT JOIN V_ORDER_TO_WO OW ON SL.ORDER_NO = OW.ORDER_NO AND SL.ORDER_REC = OW.ORDER_LINE LEFT JOIN V_INV_CROSS_REF IX ON SL.CUSTOMER = IX.CUSTOMER AND SL.PART = IX.PART WHERE SL.ORIG_PCK_NO = '{0}' AND SL.PART = '{1}'",V.Local.sPack,V.Local.sPart,V.Local.sSql)
+	f.ODBC.Connection!conx.ExecuteAndReturn(v.Local.sSql,v.Local.sReturn)
+	f.Intrinsic.String.Split(v.Local.sReturn,"#$#",v.Local.sReturn)
+	f.Intrinsic.String.Split(v.Local.sReturn(0),"*!*",v.Local.sTemp)
+	'update the new columns in th datatable with the returned values from the query
+	f.data.datatable.setvalue("dtLabels", v.Local.iCount, "CUSTOMER", V.Local.sTemp(6))
+	F.Data.DataTable.SetValue("dtLabels", v.Local.iCount, "CUST_PART", V.Local.sTemp(5))
+	F.Data.DataTable.SetValue("dtLabels", v.Local.iCount, "CUST_PO", V.Local.sTemp(4))
+	F.Data.DataTable.SetValue("dtLabels", v.Local.iCount, "INVOICE", V.Local.sTemp(2))
+	F.Data.DataTable.SetValue("dtLabels", v.Local.iCount, "JOB",V.Local.sTemp(7))
+	F.Data.DataTable.SetValue("dtLabels", v.Local.iCount, "SUFFIX",V.Local.sTemp(8))
+	F.Data.DataTable.SetValue("dtLabels", v.Local.iCount, "SO_NBR",V.Local.sTemp(9))
+f.Intrinsic.Control.Next(v.Local.iCount)
+	
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("additional_data_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GAB_4504_BOL_LABELS.G2U",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.additional_data.End
+
+Program.Sub.print_codesoft.Start
+F.Intrinsic.Control.SetErrorHandler("print_codesoft_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.sData.Declare(String)
+
+'convert the datatable to a string and load it to the UDT for printing
+F.Data.DataView.Create("dtLabels","dvdtLabels")
+f.Data.DataView.SetFilter("dtLabels","dvdtLabels","PART > ''")
+f.Data.DataView.ToDataTable("dtLabels","dvdtLabels","LABELS",True)
+'f.Data.DataView.ToString("dtLabels","dvdtLabels","*!*","@!@",v.Local.sData)
+'F.Intrinsic.Variable.LoadUDTFromString(V.uGlobal.uLabel,"PCK_NO*!*PART*!*DESCRIPTION*!*SHIPQTY*!*BOXQTY*!*BOX*!*TOTAL_BOXES*!*CUSTOMER*!*CUST_PART*!*CUST_PO*!*INVOICE*!*JOB*!*SUFFIX*!*SO_NBR",v.Local.sData,"@!@","*!*",False,1000)
+
+f.Global.BI.StopLogging(v.Global.iBILogID)
+f.Intrinsic.UI.CloseWaitDialog
+'f.Intrinsic.Control.If(v.uGlobal.uLabel.UBound,<>,-1)
+'	f.Global.BI.PrintCodesoftLabelFromUDT(v.Global.iBIRunID,v.Global.iLogID,"uGlobal.uLabel","","",True)
+'f.Intrinsic.Control.EndIf
+f.Global.BI.printcodesoftlabelfromdatatable(v.Global.iBIRunID,v.Global.iLogID,"LABELS","",True)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("print_codesoft_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GAB_4504_BOL_LABELS.G2U",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.print_codesoft.End
+
+Program.Sub.Comments.Start
+${$0$}$GAB_4504_BOL_LABELS$}$DFINCH$}$3/23/2017 12:20:45 PM$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$This project will allow the customer to print carton and pallet labels without using BOL pack detail or actual cartons and pallets in GSS
+Program.Sub.Comments.End
